@@ -596,7 +596,7 @@ cdef extern from "<networkit/community/PLM.hpp>":
 
 	cdef cppclass _PLM "NetworKit::PLM"(_CommunityDetectionAlgorithm):
 		_PLM(_Graph _G) except +
-		_PLM(_Graph _G, bool_t refine, double gamma, string par, count maxIter, bool_t turbo, bool_t recurse) except +
+		_PLM(_Graph _G, bool_t refine, double gamma, string par, count maxIter, bool_t turbo, bool_t recurse, string nm) except +
 		map[string, vector[count]] &getTiming() except +
 
 cdef extern from "<networkit/community/PLM.hpp>" namespace "NetworKit::PLM":
@@ -631,9 +631,9 @@ cdef class PLM(CommunityDetector):
 		Default: True
 	"""
 
-	def __cinit__(self, Graph G not None, refine=False, gamma=1.0, par="balanced", maxIter=32, turbo=True, recurse=True):
+	def __cinit__(self, Graph G not None, refine=False, gamma=1.0, par="balanced", maxIter=32, turbo=True, recurse=True, nm="all"):
 		self._G = G
-		self._this = new _PLM(G._this, refine, gamma, stdstring(par), maxIter, turbo, recurse)
+		self._this = new _PLM(G._this, refine, gamma, stdstring(par), maxIter, turbo, recurse, stdstring(nm))
 
 	def getTiming(self):
 		"""  

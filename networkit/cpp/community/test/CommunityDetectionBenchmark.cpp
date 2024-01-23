@@ -40,7 +40,7 @@ TEST_F(CommunityDetectionBenchmark, benchClusteringAlgos) {
     // std::string graph = "../graphs/in-2004.graph";
     // std::string graph = "../graphs/uk-2002.graph";
     // std::string graph = "../graphs/uk-2007-05.graph";
-    std::string graph = "input/polblogs.graph";
+    std::string graph = "/home/yliumh/github/networkit/input/polblogs.graph";
 
     DEBUG("Reading graph file ", graph.c_str(), " ...");
     timer.start();
@@ -124,5 +124,38 @@ TEST_F(CommunityDetectionBenchmark, benchBetweennessCentrality) {
              ranking[0].second, "), (", ranking[1].first, ": ", ranking[1].second, ") ...]");
     }
 }
+
+TEST_F(CommunityDetectionBenchmark, advancedNodeMoving) {
+    Aux::Timer timer;
+    Modularity mod;
+
+    std::string graph = "/home/yliumh/github/networkit/input/polblogs.graph";
+
+    DEBUG("Reading graph file ", graph.c_str(), " ...");
+    timer.start();
+    const Graph G = this->metisReader.read(graph);
+    timer.stop();
+    DEBUG("Reading graph took ", timer.elapsedMilliseconds() / 1000.0, "s");
+
+    for (int r = 0; r < runs; r++) {
+        DEBUG("What's up??");
+        Graph Gcopy = G;
+        PLM algo(Gcopy, false, 1.0, "balanced", 32, false, true, "queue");
+        DEBUG("have you been here?");
+
+        timer.start();
+        algo.run();
+        Partition zeta = algo.getPartition();
+        timer.stop();
+
+        auto communitySizes = zeta.subsetSizes();
+
+        INFO("Parallel Louvain on ", graph.c_str(), ": ", (timer.elapsedMilliseconds() / 1000.0),
+             "s,\t#communities: ", zeta.numberOfSubsets(),
+             ",\tmodularity: ", mod.getQuality(zeta, G));
+    }
+}
+
+
 
 } /* namespace NetworKit */

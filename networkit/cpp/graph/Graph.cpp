@@ -600,21 +600,23 @@ void erase(node u, index idx, std::vector<std::vector<T>> &vec) {
     vec[u].pop_back();
 }
 
-void Graph::removeEdge(node u, node v) {
+void Graph::removeEdge(node u, node v, bool maintainSortedEdges, bool maintainCompactEdgeIDs) {
     assert(u < z);
     assert(exists[u]);
     assert(v < z);
     assert(exists[v]);
 
-    if (maintainCompactEdges && !edgesIndexed) {
-        throw std::runtime_error("Edges have to be indexed if maintainCompactEdges is set to true");
+    if (maintainCompactEdgeIDs && !edgesIndexed) {
+        throw std::runtime_error(
+            "Edges have to be indexed if maintainCompactEdgeIDs is set to true");
     }
 
     index vi = indexInOutEdgeArray(u, v);
     index ui = indexInInEdgeArray(v, u);
 
-    if (maintainCompactEdges) {
-        deletedID = edgeId(u, v);
+    node deletedID;
+    if (maintainCompactEdgeIDs) {
+        deletedID = outEdgeIds[u][vi];
     }
 
     if (vi == none) {
@@ -678,7 +680,7 @@ void Graph::removeEdge(node u, node v) {
             }
         }
     }
-    if (maintainCompactEdges) {
+    if (maintainCompactEdgeIDs) {
         // re-index edge IDs from deleted edge upwards
         balancedParallelForNodes([&](node u) {
             for (index i = 0; i < outEdges[u].size(); ++i) {
@@ -713,7 +715,7 @@ void Graph::removeEdge(node u, node v) {
             }
         }
 
-        if (maintainCompactEdges) {
+        if (maintainCompactEdgeIDs) {
             // re-index edge ids from target node
             balancedParallelForNodes([&](node u) {
                 for (index i = 0; i < inEdges[u].size(); ++i) {
@@ -726,7 +728,7 @@ void Graph::removeEdge(node u, node v) {
             });
         }
     }
-    if (maintainCompactEdges) {
+    if (maintainCompactEdgeIDs) {
         omega--; // decrease upperBound of edges
     }
 }

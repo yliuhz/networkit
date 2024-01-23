@@ -19,15 +19,20 @@
 namespace NetworKit {
 
 PLM::PLM(const Graph &G, bool refine, double gamma, std::string par, count maxIter, bool turbo,
-         bool recurse)
+         bool recurse, std::string nm)
     : CommunityDetectionAlgorithm(G), parallelism(std::move(par)), refine(refine), gamma(gamma),
-      maxIter(maxIter), turbo(turbo), recurse(recurse) {}
+      maxIter(maxIter), turbo(turbo), recurse(recurse), nm(std::move(nm)) {}
 
 PLM::PLM(const Graph &G, const PLM &other)
     : CommunityDetectionAlgorithm(G), parallelism(other.parallelism), refine(other.refine),
       gamma(other.gamma), maxIter(other.maxIter), turbo(other.turbo), recurse(other.recurse) {}
 
 void PLM::run() {
+
+    // std::cout << "I am Yue Liu!" << std::endl;
+    // std::cout << "Num of threads: " << omp_get_num_threads() << " " << omp_get_max_threads() << std::endl;
+    DEBUG("Entering PLM::run()");
+
     Aux::SignalHandler handler;
 
     count z = G->upperNodeIdBound();
@@ -195,24 +200,323 @@ void PLM::run() {
         }
     };
 
+
+    // try to improve modularity by moving a node to neighboring clusters, using sampling
+    auto tryMoveSampling = [&](node u) {
+        // trying to move node u
+        index tid = omp_get_thread_num();
+
+        // collect edge weight to neighbor clusters
+        std::map<index, edgeweight> affinity;
+
+        if (turbo) {
+            neigh_comm[tid].clear();
+            // set all to -1 so we can see when we get to it the first time
+            G->forNeighborsOf(u, [&](node v) { turboAffinity[tid][zeta[v]] = -1; });
+            turboAffinity[tid][zeta[u]] = 0;
+            G->forNeighborsOf(u, [&](node v, edgeweight weight) {
+                if (u != v) {
+                    index C = zeta[v];
+                    if (turboAffinity[tid][C] == -1) {
+                        // found the neighbor for the first time, initialize to 0 and add to list of
+                        // neighboring communities
+                        turboAffinity[tid][C] = 0;
+                        neigh_comm[tid].push_back(C);
+                    }
+                    turboAffinity[tid][C] += weight;
+                }
+            });
+        } else {
+            G->forNeighborsOf(u, [&](node v, edgeweight weight) {
+                if (u != v) {
+                    index C = zeta[v];
+                    affinity[C] += weight;
+                }
+            });
+        }
+
+        // sub-functions
+
+        // $\vol(C \ {x})$ - volume of cluster C excluding node x
+        auto volCommunityMinusNode = [&](index C, node x) {
+            double volC = 0.0;
+            double volN = 0.0;
+            volC = volCommunity[C];
+            if (zeta[x] == C) {
+                volN = volNode[x];
+                return volC - volN;
+            } else {
+                return volC;
+            }
+        };
+
+        auto modGain = [&](node u, index C, index D, edgeweight affinityC, edgeweight affinityD) {
+            double volN = 0.0;
+            volN = volNode[u];
+            double delta =
+                (affinityD - affinityC) / total
+                + this->gamma * ((volCommunityMinusNode(C, u) - volCommunityMinusNode(D, u)) * volN)
+                      / divisor;
+            return delta;
+        };
+
+        index best = none;
+        index C = none;
+        double deltaBest = -1;
+
+        C = zeta[u];
+
+        std::random_device rd;
+        std::mt19937 rng(rd());  // Create a random number generator engine for each thread
+        auto deg_of_u = G->degree(u);
+        if (deg_of_u == 0) return;
+        std::uniform_int_distribution<index> distribution(0, deg_of_u-1);  // Define the range of random integers
+
+        if (turbo) {
+            throw std::runtime_error("Not implemented turbo for sampling");
+
+            // edgeweight affinityC = turboAffinity[tid][C];
+
+            // for (index D : neigh_comm[tid]) {
+
+            //     // consider only nodes in other clusters (and implicitly only nodes other than u)
+            //     if (D != C) {
+            //         double delta = modGain(u, C, D, affinityC, turboAffinity[tid][D]);
+
+            //         if (delta > deltaBest) {
+            //             deltaBest = delta;
+            //             best = D;
+            //         }
+            //     }
+            // }
+        } else {
+            edgeweight affinityC = affinity[C];
+
+            // for (auto it : affinity) {
+            //     index D = it.first;
+            //     // consider only nodes in other clusters (and implicitly only nodes other than u)
+            //     if (D != C) {
+            //         double delta = modGain(u, C, D, affinityC, it.second);
+            //         if (delta > deltaBest) {
+            //             deltaBest = delta;
+            //             best = D;
+            //         }
+            //     }
+            // }
+
+            index neighbor_index = distribution(rng);
+            // DEBUG("fetching neighbor ", neighbor_index, ", ", deg_of_u);
+            node neighbor = G->getIthNeighbor(u, neighbor_index);
+            // DEBUG("Finished fetching neighbor");
+
+            if (neighbor == u) {
+                deltaBest = 0.0;
+            }
+            else{
+                index D = zeta[neighbor];
+                edgeweight affinityD = affinity[D];
+                double delta = modGain(u, C, D, affinityC, affinityD);
+                deltaBest = delta;
+                best = D;
+            }
+            
+        }
+
+        if (deltaBest > 0) {                   // if modularity improvement possible
+            assert(best != C && best != none); // do not "move" to original cluster
+
+            zeta[u] = best; // move to best cluster
+            // node u moved
+
+            // mod update
+            double volN = 0.0;
+            volN = volNode[u];
+// update the volume of the two clusters
+#pragma omp atomic
+            volCommunity[C] -= volN;
+#pragma omp atomic
+            volCommunity[best] += volN;
+
+            moved = true; // change to clustering has been made
+        }
+    };
+
+
+    // try to improve modularity by moving a node to neighboring clusters, using pruning
+    std::vector<bool> shouldRun(z, true);
+    auto tryMovePruning = [&](node u) {
+        if (!shouldRun[u]) return;
+        shouldRun[u] = false;
+
+        // trying to move node u
+        index tid = omp_get_thread_num();
+
+        // collect edge weight to neighbor clusters
+        std::map<index, edgeweight> affinity;
+
+        if (turbo) {
+            neigh_comm[tid].clear();
+            // set all to -1 so we can see when we get to it the first time
+            G->forNeighborsOf(u, [&](node v) { turboAffinity[tid][zeta[v]] = -1; });
+            turboAffinity[tid][zeta[u]] = 0;
+            G->forNeighborsOf(u, [&](node v, edgeweight weight) {
+                if (u != v) {
+                    index C = zeta[v];
+                    if (turboAffinity[tid][C] == -1) {
+                        // found the neighbor for the first time, initialize to 0 and add to list of
+                        // neighboring communities
+                        turboAffinity[tid][C] = 0;
+                        neigh_comm[tid].push_back(C);
+                    }
+                    turboAffinity[tid][C] += weight;
+                }
+            });
+        } else {
+            G->forNeighborsOf(u, [&](node v, edgeweight weight) {
+                if (u != v) {
+                    index C = zeta[v];
+                    affinity[C] += weight;
+                }
+            });
+        }
+
+        // sub-functions
+
+        // $\vol(C \ {x})$ - volume of cluster C excluding node x
+        auto volCommunityMinusNode = [&](index C, node x) {
+            double volC = 0.0;
+            double volN = 0.0;
+            volC = volCommunity[C];
+            if (zeta[x] == C) {
+                volN = volNode[x];
+                return volC - volN;
+            } else {
+                return volC;
+            }
+        };
+
+        auto modGain = [&](node u, index C, index D, edgeweight affinityC, edgeweight affinityD) {
+            double volN = 0.0;
+            volN = volNode[u];
+            double delta =
+                (affinityD - affinityC) / total
+                + this->gamma * ((volCommunityMinusNode(C, u) - volCommunityMinusNode(D, u)) * volN)
+                      / divisor;
+            return delta;
+        };
+
+        index best = none;
+        index C = none;
+        double deltaBest = -1;
+
+        C = zeta[u];
+
+        if (turbo) {
+            edgeweight affinityC = turboAffinity[tid][C];
+
+            for (index D : neigh_comm[tid]) {
+
+                // consider only nodes in other clusters (and implicitly only nodes other than u)
+                if (D != C) {
+                    double delta = modGain(u, C, D, affinityC, turboAffinity[tid][D]);
+
+                    if (delta > deltaBest) {
+                        deltaBest = delta;
+                        best = D;
+                    }
+                }
+            }
+        } else {
+            edgeweight affinityC = affinity[C];
+
+            for (auto it : affinity) {
+                index D = it.first;
+                // consider only nodes in other clusters (and implicitly only nodes other than u)
+                if (D != C) {
+                    double delta = modGain(u, C, D, affinityC, it.second);
+                    if (delta > deltaBest) {
+                        deltaBest = delta;
+                        best = D;
+                    }
+                }
+            }
+        }
+
+        if (deltaBest > 0) {                   // if modularity improvement possible
+            assert(best != C && best != none); // do not "move" to original cluster
+
+            zeta[u] = best; // move to best cluster
+            // node u moved
+
+            // mod update
+            double volN = 0.0;
+            volN = volNode[u];
+// update the volume of the two clusters
+#pragma omp atomic
+            volCommunity[C] -= volN;
+#pragma omp atomic
+            volCommunity[best] += volN;
+
+            moved = true; // change to clustering has been made
+
+            // Wake its neighbor threads in the next iteration
+            G->forNeighborsOf(u, [&](node v, edgeweight weight) {
+                if (u != v) {
+                    shouldRun[v] = true;
+                }
+            });
+        }
+    };
+
     // performs node moves
     auto movePhase = [&]() {
         count iter = 0;
         do {
             moved = false;
             // apply node movement according to parallelization strategy
-            if (this->parallelism == "none") {
-                G->forNodes(tryMove);
-            } else if (this->parallelism == "simple") {
-                G->parallelForNodes(tryMove);
-            } else if (this->parallelism == "balanced") {
-                G->balancedParallelForNodes(tryMove);
-            } else if (this->parallelism == "none randomized") {
-                G->forNodesInRandomOrder(tryMove);
-            } else {
-                ERROR("unknown parallelization strategy: ", this->parallelism);
-                throw std::runtime_error("unknown parallelization strategy");
+            if (this->nm == "all") {
+                if (this->parallelism == "none") {
+                    G->forNodes(tryMove);
+                } else if (this->parallelism == "simple") {
+                    G->parallelForNodes(tryMove);
+                } else if (this->parallelism == "balanced") {
+                    G->balancedParallelForNodes(tryMove);
+                } else if (this->parallelism == "none randomized") {
+                    G->forNodesInRandomOrder(tryMove);
+                } else {
+                    ERROR("unknown parallelization strategy: ", this->parallelism);
+                    throw std::runtime_error("unknown parallelization strategy");
+                }
             }
+            else if (this->nm == "unweighted") {
+                if (this->parallelism == "none") {
+                    G->forNodes(tryMoveSampling);
+                } else if (this->parallelism == "simple") {
+                    G->parallelForNodes(tryMoveSampling);
+                } else if (this->parallelism == "balanced") {
+                    G->balancedParallelForNodes(tryMoveSampling);
+                } else if (this->parallelism == "none randomized") {
+                    G->forNodesInRandomOrder(tryMoveSampling);
+                } else {
+                    ERROR("unknown parallelization strategy: ", this->parallelism);
+                    throw std::runtime_error("unknown parallelization strategy");
+                }
+            }
+            else if (this->nm == "queue") {
+                if (this->parallelism == "none") {
+                    G->forNodes(tryMovePruning);
+                } else if (this->parallelism == "simple") {
+                    G->parallelForNodes(tryMovePruning);
+                } else if (this->parallelism == "balanced") {
+                    G->balancedParallelForNodes(tryMovePruning);
+                } else if (this->parallelism == "none randomized") {
+                    G->forNodesInRandomOrder(tryMovePruning);
+                } else {
+                    ERROR("unknown parallelization strategy: ", this->parallelism);
+                    throw std::runtime_error("unknown parallelization strategy");
+                }
+            }
+            
             if (moved)
                 change = true;
 
