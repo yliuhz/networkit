@@ -598,6 +598,8 @@ cdef extern from "<networkit/community/PLM.hpp>":
 		_PLM(_Graph _G) except +
 		_PLM(_Graph _G, bool_t refine, double gamma, string par, count maxIter, bool_t turbo, bool_t recurse, string nm) except +
 		map[string, vector[count]] &getTiming() except +
+		vector[count] &getCount() except +
+		vector[count] &getIter() except +
 
 cdef extern from "<networkit/community/PLM.hpp>" namespace "NetworKit::PLM":
 
@@ -647,6 +649,12 @@ cdef class PLM(CommunityDetector):
 			Time for computing PLM.
 		"""
 		return (<_PLM*>(self._this)).getTiming()
+
+	def getCount(self):
+		return (<_PLM*>(self._this)).getCount()
+
+	def getIter(self):
+		return (<_PLM*>(self._this)).getIter()
 
 	@staticmethod
 	def coarsen(Graph G, Partition zeta, bool_t parallel = False):

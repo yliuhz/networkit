@@ -74,6 +74,10 @@ public:
      * Returns fine-grained running time measurements for algorithm engineering purposes.
      */
     const std::map<std::string, std::vector<count>> &getTiming() const;
+    
+    const std::vector<count> &getCount() const;
+
+    const std::vector<count> &getIter() const;
 
 private:
     std::string parallelism;
@@ -84,6 +88,8 @@ private:
     bool recurse;
     std::string nm;
     std::map<std::string, std::vector<count>> timing; // fine-grained running time measurement
+    std::vector<count> visitCountSum; // fine-grained node visiting count
+    std::vector<count> iterCount;
 };
 
 } /* namespace NetworKit */

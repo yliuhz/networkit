@@ -225,6 +225,20 @@ node randomNeighbor(const Graph &G, node u) {
     return G.getIthNeighbor(u, Aux::Random::integer(G.degree(u) - 1));
 }
 
+// Return a random neighbor of u, could not be u (self-loop)
+node randomNeighborNeq(const Graph &G, node u) {
+    if (G.degree(u) == 0 || (G.degree(u) == 1 && G.getIthNeighbor(u, 0) == u))
+        return none;
+    
+    uint64_t idx = Aux::Random::integer(G.degree(u) - 1);
+    node v = G.getIthNeighbor(u, idx);
+    if (v == u) {
+        idx = (uint64_t)((idx + G.degree(u)) / 2);
+        v = G.getIthNeighbor(u, idx);
+    }
+    return v;
+}
+
 std::pair<node, node> size(const Graph &G) noexcept {
     return {G.numberOfNodes(), G.numberOfEdges()};
 }

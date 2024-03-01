@@ -72,6 +72,15 @@ std::vector<node> randomNodes(const Graph &G, count n);
 node randomNeighbor(const Graph &G, node u);
 
 /**
+ * Returns a random neighbor (!=u) of node @a u. Returns none if degree is zero.
+ *
+ * @param G The input graph.
+ * @param u Node.
+ * @return A random neighbor of @a u.
+ */
+node randomNeighborNeq(const Graph &G, node u);
+
+/**
  * Returns a random edge. By default a random node u is chosen and then
  * some random neighbor v. So the probability of choosing (u, v) highly
  * depends on the degree of u. Setting uniformDistribution to true, will
