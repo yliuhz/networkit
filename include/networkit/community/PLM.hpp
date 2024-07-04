@@ -41,6 +41,7 @@ public:
 
     PLM(const Graph &G, const PLM &other);
 
+
     /**
      * Detect communities.
      */
@@ -79,6 +80,17 @@ public:
 
     const std::vector<count> &getIter() const;
 
+
+    /**
+     * Progressively build similarity graph
+     */
+    void addKNNGraph(const Graph &G);
+    Graph progressive(const Partition &zeta0);
+    const count getStopIter() const;
+
+    
+    
+
 private:
     std::string parallelism;
     bool refine;
@@ -89,7 +101,10 @@ private:
     std::string nm;
     std::map<std::string, std::vector<count>> timing; // fine-grained running time measurement
     std::vector<count> visitCountSum; // fine-grained node visiting count
-    std::vector<count> iterCount;
+    std::vector<count> iterCount;  
+
+    std::vector<Graph> Gs;
+    count stopIter = 1;
 };
 
 } /* namespace NetworKit */

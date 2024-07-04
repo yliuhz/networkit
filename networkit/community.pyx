@@ -600,6 +600,9 @@ cdef extern from "<networkit/community/PLM.hpp>":
 		map[string, vector[count]] &getTiming() except +
 		vector[count] &getCount() except +
 		vector[count] &getIter() except +
+		void addKNNGraph(const _Graph &_G) except +
+		_Graph PLM_progressive "NetworKit::PLM::progressive"(const _Partition& zeta0) except +
+		count getStopIter() except +
 
 cdef extern from "<networkit/community/PLM.hpp>" namespace "NetworKit::PLM":
 
@@ -706,6 +709,15 @@ cdef class PLM(CommunityDetector):
 			Output partition.
 		"""
 		return Partition().setThis(PLM_prolong(Gcoarse._this, zetaCoarse._this, Gfine._this, nodeToMetaNode))
+
+	def addKNNGraph(self, Graph G):
+		(<_PLM*>(self._this)).addKNNGraph(G._this)
+
+	def progressive(self, Partition zeta0):
+		algo = <_PLM*>(self._this)
+		ret = Graph().setThis(algo.PLM_progressive(zeta0._this))
+		print("Stop at {}th KNN graph".format(algo.getStopIter()))
+		return ret
 
 cdef extern from "<networkit/community/ParallelLeiden.hpp>":
 

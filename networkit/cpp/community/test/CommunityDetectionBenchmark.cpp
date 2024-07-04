@@ -243,6 +243,65 @@ TEST_F(CommunityDetectionBenchmark, softmax) {
         sum += p;
     }
     std::cout<<"sum="<<sum<<std::endl;
+}
+
+
+TEST_F(CommunityDetectionBenchmark, progressive) {
+    Aux::Timer timer;
+    Modularity mod;
+
+    // std::string graph = "/home/yliumh/github/networkit/input/polblogs.graph";
+
+    std::vector<int> ks = {10,20,30,40,50};
+    std::vector<Graph> Gs;
+
+    
+    timer.start();
+    for (auto k : ks) {
+        std::string graph = "/home/yliumh/github/networkit/input/KNNGraphs/knn_adj_cora_0_" + std::to_string(k) + ".graph";
+        DEBUG("Reading graph file ", graph.c_str(), " ...");
+        Graph G = this->metisReader.read(graph);
+        Gs.push_back(G);
+    }
+    timer.stop();
+    DEBUG("Reading ", Gs.size(), " graphs took ", timer.elapsedMilliseconds() / 1000.0, "s");
+
+    for (int r = 0; r < runs; r++) {
+        DEBUG("What's up??");
+        Graph Gcopy = Gs[0];
+        PLM algo(Gcopy, false, 1.0, "none", 32, true, true, "all");
+        DEBUG("have you been here?");
+
+        timer.start();
+        algo.run();
+        Partition zeta = algo.getPartition();
+        timer.stop();
+
+        INFO("Parallel Louvain on G0: ", (timer.elapsedMilliseconds() / 1000.0),
+             "s,\t#communities: ", zeta.numberOfSubsets(),
+             ",\tmodularity: ", mod.getQuality(zeta, Gcopy));
+
+        for (auto G: Gs) {
+            algo.addKNNGraph(G);
+        }
+
+        Graph GP = algo.progressive(zeta);
+        INFO("Before #Edges: ", Gcopy.numberOfEdges(), ", After #Edges: ", GP.numberOfEdges());
+        INFO("Before #Weights: ", Gcopy.totalEdgeWeight(), ", After #Weights: ", GP.totalEdgeWeight());
+
+        PLM algo2(GP, false, 1.0, "none", 32, true, true, "all");
+        timer.start();
+        algo2.run();
+        Partition zeta2 = algo2.getPartition();
+        timer.stop();
+
+        auto communitySizes = zeta.subsetSizes();
+
+        INFO("Parallel Louvain on GP: ", (timer.elapsedMilliseconds() / 1000.0),
+             "s,\t#communities: ", zeta2.numberOfSubsets(),
+             ",\tmodularity: ", mod.getQuality(zeta2, GP));
+
+    }
 
 
 
