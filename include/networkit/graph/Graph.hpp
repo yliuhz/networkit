@@ -1921,6 +1921,8 @@ public:
      * true and the new edge would have been a multi-edge.)
      */
     bool addEdge(node u, node v, edgeweight ew = defaultEdgeWeight, bool checkMultiEdge = false);
+    bool addWeightedEdges(const std::vector<node>& us, const std::vector<node>& vs, const std::vector<edgeweight>& ews, bool checkMultiEdge = false);
+    bool addWeightedEdgesOfNode(node u, const std::vector<node>& vs, const std::vector<edgeweight>& ews, bool checkMultiEdge = false);
 
     /**
      * Insert an edge between the nodes @a u and @a v. Unline the addEdge function, this function

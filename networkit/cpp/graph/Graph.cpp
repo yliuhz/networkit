@@ -60,12 +60,12 @@ Graph::Graph(std::initializer_list<WeightedEdge> edges) : Graph(0, true) {
 void Graph::preallocateUndirected(node u, size_t size) {
     assert(!directed);
     assert(exists[u]);
-    outEdges[u].reserve(size);
+    outEdges[u].reserve(outEdges[u].size()+size);
     if (weighted) {
-        outEdgeWeights[u].reserve(size);
+        outEdgeWeights[u].reserve(outEdgeWeights[u].size()+size);
     }
     if (edgesIndexed) {
-        outEdgeIds[u].reserve(size);
+        outEdgeIds[u].reserve(outEdgeIds[u].size()+size);
     }
 }
 
@@ -522,6 +522,27 @@ bool Graph::addEdge(node u, node v, edgeweight ew, bool checkForMultiEdges) {
 
     return true;
 }
+
+
+bool Graph::addWeightedEdges(const std::vector<node>& us, const std::vector<node>& vs, const std::vector<edgeweight>& ews, bool checkMultiEdge) {
+    int n = us.size();
+
+    for (int i = 0; i < n; i++) {
+        this->addEdge(us[i], vs[i], ews[i], checkMultiEdge);
+    }
+    return true;
+}
+
+
+bool Graph::addWeightedEdgesOfNode(node u, const std::vector<node>& vs, const std::vector<edgeweight>& ews, bool checkMultiEdge) {
+    int n = vs.size();
+    for (int i = 0; i < n; i++) {
+        this->addEdge(u, vs[i], ews[i], checkMultiEdge);
+    }
+    return true;
+}
+
+
 bool Graph::addPartialEdge(Unsafe, node u, node v, edgeweight ew, uint64_t index,
                            bool checkForMultiEdges) {
     assert(u < z);

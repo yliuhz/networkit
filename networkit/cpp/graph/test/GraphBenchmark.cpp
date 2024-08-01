@@ -116,4 +116,29 @@ TEST_F(GraphBenchmark, weightedDegree_standard_par) {
 
 // RESULT: significant super-linear speedup regardless of target container
 
+TEST_F(GraphBenchmark, testParallelAddWeightedEdges) {
+    constexpr node n = 100;
+
+    Aux::Random::setSeed(42, true);
+    Graph G(n);
+    
+
+    int k = 2;
+
+    for (int i = 0; i < 1; i++) {
+        std::vector<size_t> us = {1,1,2,2,3,3,4,4,5,5};
+        std::vector<size_t> vs = {1,2,3,4,5,6,7,8,9,10};
+        std::vector<double> ews = {1,1,1,1,1,1,1,1,1,1};
+
+        G.addWeightedEdges(us, vs, ews, false);
+    }
+
+    
+    
+    INFO(G.numberOfEdges());
+    G.forEdges([&] (node u, node v, edgeweight w) {
+        INFO(u, " ", v, " ", w);
+    });
+}
+
 } /* namespace NetworKit */

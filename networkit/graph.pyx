@@ -459,7 +459,8 @@ cdef class Graph:
 				try:
 					row = inputData[1][0].view(dtype = np.uint)
 					col = inputData[1][1].view(dtype = np.uint)
-					data = inputData[0].view(dtype = np.double)
+					# data = inputData[0].view(dtype = np.double)
+					data = inputData[0].view()
 				except (TypeError, ValueError) as e:
 					raise TypeError('invalid input format') from e
 			else:
@@ -473,6 +474,7 @@ cdef class Graph:
 			raise TypeError('invalid input format')
 
 		cdef int numEdges = np.shape(row)[0]
+		# print("Cython???: ", row.shape, col.shape, data.shape)
 
 		if addMissing:	
 			for i in range(numEdges):
@@ -483,6 +485,15 @@ cdef class Graph:
 				# Calling Cython interface of addEdge directly for higher performance. 
 				self._this.addEdge(row[i], col[i], data[i], checkMultiEdge)
 
+		return self
+
+	def addWeightedEdges(self, row, col, data, checkMultiEdge = False):
+		self._this.addWeightedEdges(row, col, data, checkMultiEdge)
+
+		return self
+
+	def addWeightedEdgesOfNode(self, u, col, data, checkMultiEdge = False):
+		self._this.addWeightedEdgesOfNode(u, col, data, checkMultiEdge)
 		return self
 
 	def setWeight(self, u, v, w):

@@ -603,6 +603,9 @@ cdef extern from "<networkit/community/PLM.hpp>":
 		void addKNNGraph(const _Graph &_G) except +
 		_Graph PLM_progressive "NetworKit::PLM::progressive"(const _Partition& zeta0) except +
 		count getStopIter() except +
+		_Graph PLM_progressiveOnline "NetworKit::PLM::progressiveOnline"(const _Graph& dG, const _Graph& GA0, const _Partition& zeta0) except +
+		_Graph PLM_progressiveOnline_wo_hierarchy "NetworKit::PLM::progressiveOnline_wo_hierarchy"(const _Graph& dG, const _Graph& G0, const _Partition& zeta0) except +
+		const count stopNow() except +
 
 cdef extern from "<networkit/community/PLM.hpp>" namespace "NetworKit::PLM":
 
@@ -718,6 +721,21 @@ cdef class PLM(CommunityDetector):
 		ret = Graph().setThis(algo.PLM_progressive(zeta0._this))
 		print("Stop at {}th KNN graph".format(algo.getStopIter()))
 		return ret
+
+	def progressiveOnline(self, Graph dG, Graph GA0, Partition zeta0):
+		algo = <_PLM*>(self._this)
+		ret = Graph().setThis(algo.PLM_progressiveOnline(dG._this, GA0._this, zeta0._this))
+		return ret
+
+	def progressiveOnline_wo_hierarchy(self, Graph dG, Graph G0, Partition zeta0):
+		algo = <_PLM*>(self._this)
+		ret = Graph().setThis(algo.PLM_progressiveOnline_wo_hierarchy(dG._this, G0._this, zeta0._this))
+		return ret
+	
+
+	def stopNow(self):
+		return (<_PLM*>(self._this)).stopNow()
+	
 
 cdef extern from "<networkit/community/ParallelLeiden.hpp>":
 

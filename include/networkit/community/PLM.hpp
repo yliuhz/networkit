@@ -87,6 +87,10 @@ public:
     void addKNNGraph(const Graph &G);
     Graph progressive(const Partition &zeta0);
     const count getStopIter() const;
+    // void setDiffGraph(const Graph &G);
+    Graph progressiveOnline(const Graph &dG, const Graph &GA0, const Partition &zeta0);
+    Graph progressiveOnline_wo_hierarchy(const Graph &dG, const Graph &G0, const Partition &zeta0);
+    const count stopNow() const;
 
     
     
@@ -103,8 +107,10 @@ private:
     std::vector<count> visitCountSum; // fine-grained node visiting count
     std::vector<count> iterCount;  
 
-    std::vector<Graph> Gs;
-    count stopIter = 1;
+    std::vector<Graph> Gs; // set of knn graphs
+    count stopIter = 1; // PGC breaks at ith iteration
+    count stop = 0;
+    // Graph tempDG; // differential knn graph
 };
 
 } /* namespace NetworKit */
